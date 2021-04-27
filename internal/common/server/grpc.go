@@ -12,15 +12,21 @@ import (
 	"google.golang.org/grpc"
 )
 
+func init() {
+	grpc_logrus.ReplaceGrpcLogger(logrus.NewEntry(logrus.StandardLogger()))
+}
+
 func RunGRPCServer(registerServer func(server *grpc.Server)) {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	grpcEndpoint := fmt.Sprintf(":%s", port)
+	addr := fmt.Sprintf(":%s", port)
+	RunGRPCServerOnAddr(addr, registerServer)
+}
 
+func RunGRPCServerOnAddr(addr string, registerServer func(server *grpc.Server)) {
 	logrusEntry := logrus.NewEntry(logrus.StandardLogger())
-	grpc_logrus.ReplaceGrpcLogger(logrusEntry)
 
 	grpcServer := grpc.NewServer(
 		grpc_middleware.WithUnaryServerChain(
@@ -34,10 +40,10 @@ func RunGRPCServer(registerServer func(server *grpc.Server)) {
 	)
 	registerServer(grpcServer)
 
-	listen, err := net.Listen("tcp", grpcEndpoint)
+	listen, err := net.Listen("tcp", addr)
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	logrus.WithField("grpcEndpoint", grpcEndpoint).Info("Starting: gRPC Listener")
+	logrus.WithField("grpcEndpoint", addr).Info("Starting: gRPC Listener")
 	logrus.Fatal(grpcServer.Serve(listen))
 }

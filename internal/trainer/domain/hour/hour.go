@@ -55,8 +55,8 @@ func (f FactoryConfig) Validate() error {
 		err = multierr.Append(
 			err,
 			errors.Errorf(
-				"MaxUtcHour (%d) can't be after MinUtcHour (%d)",
-				f.MaxUtcHour, f.MinUtcHour,
+				"MinUtcHour (%d) can't be after MaxUtcHour (%d)",
+				f.MinUtcHour, f.MaxUtcHour,
 			),
 		)
 	}
@@ -65,7 +65,7 @@ func (f FactoryConfig) Validate() error {
 }
 
 type Factory struct {
-	// it's better to keep FactoryConfig as a private attributte,
+	// it's better to keep FactoryConfig as a private attribute,
 	// thanks to that we are always sure that our configuration is not changed in the not allowed way
 	fc FactoryConfig
 }

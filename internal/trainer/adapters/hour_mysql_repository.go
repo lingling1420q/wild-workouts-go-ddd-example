@@ -41,7 +41,7 @@ type sqlContextGetter interface {
 	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
 }
 
-func (m MySQLHourRepository) GetOrCreateHour(ctx context.Context, time time.Time) (*hour.Hour, error) {
+func (m MySQLHourRepository) GetHour(ctx context.Context, time time.Time) (*hour.Hour, error) {
 	return m.getOrCreateHour(ctx, m.db, time, false)
 }
 
@@ -79,7 +79,25 @@ func (m MySQLHourRepository) getOrCreateHour(
 	return domainHour, nil
 }
 
+const mySQLDeadlockErrorCode = 1213
+
 func (m MySQLHourRepository) UpdateHour(
+	ctx context.Context,
+	hourTime time.Time,
+	updateFn func(h *hour.Hour) (*hour.Hour, error),
+) error {
+	for {
+		err := m.updateHour(ctx, hourTime, updateFn)
+
+		if val, ok := errors.Cause(err).(*mysql.MySQLError); ok && val.Number == mySQLDeadlockErrorCode {
+			continue
+		}
+
+		return err
+	}
+}
+
+func (m MySQLHourRepository) updateHour(
 	ctx context.Context,
 	hourTime time.Time,
 	updateFn func(h *hour.Hour) (*hour.Hour, error),
@@ -163,13 +181,14 @@ func (m MySQLHourRepository) finishTransaction(err error, tx *sqlx.Tx) error {
 }
 
 func NewMySQLConnection() (*sqlx.DB, error) {
-	config := mysql.Config{
-		Addr:      os.Getenv("MYSQL_ADDR"),
-		User:      os.Getenv("MYSQL_USER"),
-		Passwd:    os.Getenv("MYSQL_PASSWORD"),
-		DBName:    os.Getenv("MYSQL_DATABASE"),
-		ParseTime: true, // with that parameter, we can use time.Time in mysqlHour.Hour
-	}
+	config := mysql.NewConfig()
+
+	config.Net = "tcp"
+	config.Addr = os.Getenv("MYSQL_ADDR")
+	config.User = os.Getenv("MYSQL_USER")
+	config.Passwd = os.Getenv("MYSQL_PASSWORD")
+	config.DBName = os.Getenv("MYSQL_DATABASE")
+	config.ParseTime = true // with that parameter, we can use time.Time in mysqlHour.Hour
 
 	db, err := sqlx.Connect("mysql", config.FormatDSN())
 	if err != nil {

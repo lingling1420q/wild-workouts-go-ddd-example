@@ -18,6 +18,7 @@ import (
 )
 
 func TestRepository(t *testing.T) {
+	t.Parallel()
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	repositories := createRepositories(t)
@@ -110,7 +111,9 @@ func testUpdateHour(t *testing.T, repository hour.Repository) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
 			newHour := tc.CreateHour(t)
 
 			err := repository.UpdateHour(ctx, newHour.Time(), func(_ *hour.Hour) (*hour.Hour, error) {
@@ -222,7 +225,7 @@ func testUpdateHour_rollback(t *testing.T, repository hour.Repository) {
 	})
 	require.Error(t, err)
 
-	persistedHour, err := repository.GetOrCreateHour(ctx, hourTime)
+	persistedHour, err := repository.GetHour(ctx, hourTime)
 	require.NoError(t, err)
 
 	assert.True(t, persistedHour.IsAvailable(), "availability change was persisted, not rolled back")
@@ -255,6 +258,7 @@ func testHourRepository_update_existing(t *testing.T, repository hour.Repository
 }
 
 func TestNewDateDTO(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		Time             time.Time
 		ExpectedDateTime time.Time
@@ -272,7 +276,9 @@ func TestNewDateDTO(t *testing.T) {
 	}
 
 	for _, c := range testCases {
+		c := c
 		t.Run(c.Time.String(), func(t *testing.T) {
+			t.Parallel()
 			dateDTO := adapters.NewEmptyDateDTO(c.Time)
 			assert.True(t, dateDTO.Date.Equal(c.ExpectedDateTime), "%s != %s", dateDTO.Date, c.ExpectedDateTime)
 		})
@@ -290,10 +296,10 @@ var testHourFactory = hour.MustNewFactory(hour.FactoryConfig{
 })
 
 func newFirebaseRepository(t *testing.T, ctx context.Context) *adapters.FirestoreHourRepository {
-	firebaseClient, err := firestore.NewClient(ctx, os.Getenv("GCP_PROJECT"))
+	firestoreClient, err := firestore.NewClient(ctx, os.Getenv("GCP_PROJECT"))
 	require.NoError(t, err)
 
-	return adapters.NewFirestoreHourRepository(firebaseClient, testHourFactory)
+	return adapters.NewFirestoreHourRepository(firestoreClient, testHourFactory)
 }
 
 func newMySQLRepository(t *testing.T) *adapters.MySQLHourRepository {
@@ -336,7 +342,7 @@ func newValidHourTime() time.Time {
 func assertHourInRepository(ctx context.Context, t *testing.T, repo hour.Repository, hour *hour.Hour) {
 	require.NotNil(t, hour)
 
-	hourFromRepo, err := repo.GetOrCreateHour(ctx, hour.Time())
+	hourFromRepo, err := repo.GetHour(ctx, hour.Time())
 	require.NoError(t, err)
 
 	assert.Equal(t, hour, hourFromRepo)
